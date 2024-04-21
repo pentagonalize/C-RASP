@@ -105,10 +105,13 @@ class CRASP_to_Transformer(nn.Module):
         # Add the NOT operation to the Transformer
         self.Transformer.add_feed_forward_layer_custom(custom_feed_forward_1.float(), custom_feed_forward_2.float())
 
-    def forward(self, input):
+    def forward(self, input, pretty_print=False):
         # The input is a list of words
         # First convert the words to their one-hot encodings, to get a tensor of shape (len(input), 2*len(alphabet))
         # Then, pass this tensor through the Transformer
+
+        # First append the <|BOS|> token to the input
+        input = ["<|BOS|>"] + input
 
         # Convert the input to a tensor
         input_tensor = torch.stack([self.word_embedding[word] for word in input]).float()
@@ -120,7 +123,50 @@ class CRASP_to_Transformer(nn.Module):
         result = output_tensor[-1, -2:].flatten()
         result = bool(result[0] == -1)
 
-        return (output_tensor, result)
+        if pretty_print:
+            result = output_tensor
+            # Delete every odd column
+            result = result[:, ::2]
+            # Make tensor a list of lists
+            result = result.tolist()
+            for i in range(len(self.Program.operations)):
+                # check if the ith operation is a BOOL operation
+                if self.Program.operations[i].__class__.__bases__[0].__name__ == "BOOL":
+                    for col in result:
+                        if col[i] == -1:
+                            col[i] = "T"
+                        else:
+                            col[i] = "F"
+                else:
+                    # multiply the
+                    for j in range(len(result)):
+                        result[j][i] = result[j][i]*j
+
+            # reformat so the program trace is comprehensible
+            result = [[result[j][i] for j in range(len(result))] for i in range(len(result[0]))]
+            # append the operation name to the beginning of each row
+            for i in range(len(result)):
+                result[i] = [self.Program.operations[i].verbose_str()] + result[i]
+            # add the input to the beginning of the list
+            result = [[""] + input] + result
+
+            # reformat
+            column_widths = [max(len(str(item)) for item in col) for col in zip(*result)]
+
+            # Generate the aligned result as a string
+            aligned_result = ''
+            for i, row in enumerate(result):
+                for j, (col, width) in enumerate(zip(row, column_widths)):
+                    aligned_result += f"{col:>{width}}"
+                    if j < len(row) - 1:
+                        aligned_result += ' | ' if j == 0 else '  '  # Add a vertical line after the first column
+                aligned_result += '\n'  # Newline after each row
+                if i == 0:
+                    aligned_result += '-' * (sum(column_widths) + 3 * len(column_widths) - 1) + '\n'  # Horizontal line after the first row
+
+            return aligned_result
+        else:
+            return output_tensor
 
 # Test the CRASP_to_Transformer class
 
@@ -135,5 +181,5 @@ print(model.Program)
 print(model.Transformer)
 
 # Test the forward method
-(output, result) = model(['a'])
-print(output, result)
+output = model(['a','b','c'], pretty_print=True)
+print(output)
