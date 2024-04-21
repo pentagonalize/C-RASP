@@ -103,7 +103,6 @@ class Transformer(nn.Module):
                 # Residual connection
                 layer_output = layer_output + prev_output
                 # Layer normalization
-                print("output",layer_output)
                 # layer_output = self.layer_norm(layer_output)
         return layer_output
 

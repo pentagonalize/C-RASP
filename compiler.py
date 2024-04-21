@@ -89,24 +89,17 @@ class CRASP_to_Transformer(nn.Module):
         # This corresponds to the dimension in which the operation is stored in the Transformer
         # That is, 2*operation_index and 2*operation_index+1 store the Boolean values of the operation
         operation_index = self.Program.get_index(operation_name)
-        print(operation_index)
 
-        # Initialize a 2xdims matrix with zeros for the first linear layer of the FeedForward
+        # Set the first linear layer so as to compute NOT
         custom_feed_forward_1 = torch.zeros((2, self.dims))
-        # Set position 0,2*operation_index to 1 in the first linear layer
         custom_feed_forward_1[0, 2*operation_index] = 1
-        # Set position 0,2*operation_index+1 to 1 in the first linear layer
         custom_feed_forward_1[1, 2*operation_index+1] = 1
 
-        # Initialize a dimsx2 matrix with zeros for the second linear layer of the FeedForward
+        # Set the second linear layer so as to compute NOT
         custom_feed_forward_2 = torch.zeros((self.dims, 2))
-        # Set position 2*operation_index,0 to 1 in the second linear layer
         custom_feed_forward_2[self.dims-2, 0] = -1
-        # Set position 2*operation_index+1,1 to -1 in the second linear layer
         custom_feed_forward_2[self.dims-1, 0] = 1
-        # Set position 2*operation_index,1 to -1 in the second linear layer
         custom_feed_forward_2[self.dims-1, 1] = -1
-        # Set position 2*operation_index+1,0 to 1 in the second linear layer
         custom_feed_forward_2[self.dims-2, 1] = 1
 
         # Add the NOT operation to the Transformer
@@ -121,8 +114,13 @@ class CRASP_to_Transformer(nn.Module):
         input_tensor = torch.stack([self.word_embedding[word] for word in input]).float()
 
         # Pass the input tensor through the Transformer
-        return self.Transformer(input_tensor)
+        output_tensor = self.Transformer(input_tensor)
 
+        # Get the value in the last two dimensions of the last position and convert to a Boolean value [-1,1] -> True, [1,-1] -> False
+        result = output_tensor[-1, -2:].flatten()
+        result = bool(result[0] == -1)
+
+        return (output_tensor, result)
 
 # Test the CRASP_to_Transformer class
 
@@ -137,5 +135,5 @@ print(model.Program)
 print(model.Transformer)
 
 # Test the forward method
-output = model(['a'])
-print(output)
+(output, result) = model(['a'])
+print(output, result)

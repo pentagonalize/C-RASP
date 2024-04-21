@@ -308,6 +308,16 @@ class CRASP():
         assert count1_name in [operation.name for operation in self.operations], "first count name must be a valid operation name"
         assert count2_name in [operation.name for operation in self.operations], "second count name must be a valid operation name"
 
+        # Check that the counts have not been overwritten - that is if there exists another comparison operation before this one
+        # Get the minimum index of the two counts
+        count1_index = self.get_index(count1_name)
+        count2_index = self.get_index(count2_name)
+        min_index = min(count1_index, count2_index)
+
+        # Check if there is a comparison operation between min_index and the current index
+        if any([isinstance(operation, COMPARE) for operation in self.operations[min_index:self.get_index(name)]]):
+            raise Exception("cannot compare counts that have been overwritten, need to recompute them (pls blame Ashish Vaswani, not me...)")
+
         count1 = [operation for operation in self.operations if operation.name == count1_name][-1]
         count2 = [operation for operation in self.operations if operation.name == count2_name][-1]
 
