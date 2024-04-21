@@ -63,8 +63,11 @@ class CRASP_to_Transformer(nn.Module):
                 # Here, we need to expand the weight matrices of the two linear layers
                 # The input of the first linear layer gets expanded by 2
                 layer[0].weight.data = expand_matrix(layer[0].weight.data, 0, 2)
+                layer[0].in_features = layer[0].weight.shape[1]
                 # The output of the second linear layer gets expanded by 2
                 layer[2].weight.data = expand_matrix(layer[2].weight.data, 2, 0)
+                layer[2].out_features = layer[2].weight.shape[0]
+
 
         # The word embedding gets expanded by 2
         # That is two new rows of zeros are added to each word embedding
@@ -77,6 +80,16 @@ class CRASP_to_Transformer(nn.Module):
 
         # Update the LayerNorm
         self.Transformer.layer_norm = nn.LayerNorm(normalized_shape=self.dims, elementwise_affine=False)
+
+        # # print the new dimensions of each layer for bug checking
+        # print("checking")
+        # for layer in self.Transformer.layers:
+        #     if layer.__class__.__name__ == "MultiheadAttention":
+        #         print(layer.in_proj_weight.shape)
+        #         print(layer.out_proj.weight.shape)
+        #     else:
+        #         print(layer[0].weight.shape)
+        #         print(layer[2].weight.shape)
 
     def add_NOT(self, operation_name, name):
         # Add a NOT operation to the CRASP program that negates the output of the operation with the given name
