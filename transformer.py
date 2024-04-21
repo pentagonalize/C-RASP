@@ -70,9 +70,9 @@ class Transformer(nn.Module):
         hidden_dims = custom_feed_forward_1.shape[0]
 
         # make nn.Linear objects using the custom weights
-        linear_1 = nn.Linear(self.dims, hidden_dims)
+        linear_1 = nn.Linear(self.dims, hidden_dims, bias=False)
         linear_1.weight.data = custom_feed_forward_1
-        linear_2 = nn.Linear(hidden_dims, self.dims)
+        linear_2 = nn.Linear(hidden_dims, self.dims, bias=False)
         linear_2.weight.data = custom_feed_forward_2
 
         # Append a new feed-forward layer
@@ -88,18 +88,26 @@ class Transformer(nn.Module):
     def forward(self, x):
         layer_output = x
         for i in range(self.num_layers):
+            prev_output = layer_output
             if self.layers[i].__class__.__name__ == "MultiheadAttention":
                 # Self-Attention Layer
-                mask = torch.triu(torch.ones((1, x.size(0), x.size(0))), diagonal=1).bool()
-                layer_output, _ = self.layers[i](x, x, x, attn_mask=mask)
-                # x = self.layer_norm(x + layer_output)
+                mask = torch.triu(torch.ones((1, prev_output.size(0), prev_output.size(0))), diagonal=1).bool()
+                layer_output, _ = self.layers[i](prev_output, prev_output, prev_output, attn_mask=mask)
+                # Residual connection
+                layer_output = layer_output + prev_output
+                # Layer normalization
+                # layer_output = self.layer_norm(layer_output)
             else:
                 # Feed-Forward Layer
-                layer_output = self.layers[i](x)
-                # x = self.layer_norm(x + layer_output)
+                layer_output = self.layers[i](layer_output)
+                # Residual connection
+                layer_output = layer_output + prev_output
+                # Layer normalization
+                print("output",layer_output)
+                # layer_output = self.layer_norm(layer_output)
         return layer_output
 
-# Verified computation by hand on a simple uniform attention computation
+# Verified attention by hand on a simple uniform attention computation
 
 # mydim = 2
 # transformer = Transformer(dims=mydim)

@@ -237,6 +237,7 @@ class CRASP():
     # The program is executed by iterating through the operations in order
 
     def __init__(self, alphabet):
+        # We maintain that every operation has a unique name
         self.operations = []
         self.alphabet = alphabet
 
@@ -247,6 +248,10 @@ class CRASP():
         # add <|BOS|> if not in alphabet
         if "<|BOS|>" not in alphabet:
             self.operations.append(INIT("<|BOS|>", "Q_<|BOS|>"))
+
+    def get_index(self, operation_name):
+        # Get the index of the operation with the given name in the operations list
+        return [operation.name for operation in self.operations].index(operation_name)
 
     def add_NOT(self, operation_name, name):
         # Add a NOT operation
