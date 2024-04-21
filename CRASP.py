@@ -1,3 +1,4 @@
+# Defining C-RASP programs...
 
 class BOOL():
     # Boolean Valued operations for CRASP
@@ -50,8 +51,8 @@ class AND(BOOL):
     # Takes in two BOOL operations
 
     def __init__(self, bool1, bool2, name):
-        assert isinstance(bool1, BOOL), "bool1 must be an instance of BOOL"
-        assert isinstance(bool2, BOOL), "bool2 must be an instance of BOOL"
+        assert isinstance(bool1, BOOL), "first bool must be an instance of BOOL"
+        assert isinstance(bool2, BOOL), "second bool must be an instance of BOOL"
         super().__init__(name)
         self.bool1 = bool1
         self.bool2 = bool2
@@ -62,13 +63,30 @@ class AND(BOOL):
     def verbose_str(self):
         return f"({self.bool1.verbose_str()} & {self.bool2.verbose_str()})"
 
+class OR(BOOL):
+    # Or operation for CRASP
+    # Takes in two BOOL operations
+
+    def __init__(self, bool1, bool2, name):
+        assert isinstance(bool1, BOOL), "first bool must be an instance of BOOL"
+        assert isinstance(bool2, BOOL), "second bool must be an instance of BOOL"
+        super().__init__(name)
+        self.bool1 = bool1
+        self.bool2 = bool2
+
+    def __str__(self):
+        return f"{self.bool1.name} | {self.bool2.name}"
+
+    def verbose_str(self):
+        return f"({self.bool1.verbose_str()} | {self.bool2.verbose_str()})"
+
 class COMPARE(BOOL):
     # Comparison operation for CRASP
     # Takes in two COUNT operations
 
     def __init__(self, count1, count2, name):
-        assert isinstance(count1, COUNT), "operation must be an instance of COUNT"
-        assert isinstance(count1, COUNT), "operation must be an instance of COUNT"
+        assert isinstance(count1, COUNT), "first count must be an instance of COUNT"
+        assert isinstance(count1, COUNT), "second count must be an instance of COUNT"
         super().__init__(name)
         self.count1 = count1
         self.count2 = count2
@@ -117,8 +135,8 @@ class CONDITIONAL(COUNT):
 
     def __init__(self, operation, count1, count2, name):
         assert isinstance(operation, BOOL), "operation must be an instance of BOOL"
-        assert isinstance(count1, COUNT), "count1 must be an instance of COUNT"
-        assert isinstance(count2, COUNT), "count2 must be an instance of COUNT"
+        assert isinstance(count1, COUNT), "first count must be an instance of COUNT"
+        assert isinstance(count2, COUNT), "second count must be an instance of COUNT"
         super().__init__(name)
         self.operation = operation
         self.count1 = count1
@@ -135,8 +153,8 @@ class ADDITION(COUNT):
     # Takes in two COUNT operations
 
     def __init__(self, count1, count2, name):
-        assert isinstance(count1, COUNT), "count1 must be an instance of COUNT"
-        assert isinstance(count2, COUNT), "count2 must be an instance of COUNT"
+        assert isinstance(count1, COUNT), "first count must be an instance of COUNT"
+        assert isinstance(count2, COUNT), "second count must be an instance of COUNT"
         super().__init__(name)
         self.count1 = count1
         self.count2 = count2
@@ -152,8 +170,8 @@ class SUBTRACTION(COUNT):
     # Takes in two COUNT operations
 
     def __init__(self, count1, count2, name):
-        assert isinstance(count1, COUNT), "count1 must be an instance of COUNT"
-        assert isinstance(count2, COUNT), "count2 must be an instance of COUNT"
+        assert isinstance(count1, COUNT), "first count must be an instance of COUNT"
+        assert isinstance(count2, COUNT), "second count must be an instance of COUNT"
         super().__init__(name)
         self.count1 = count1
         self.count2 = count2
@@ -169,8 +187,8 @@ class MIN(COUNT):
     # Takes in two COUNT operations
 
     def __init__(self, count1, count2, name):
-        assert isinstance(count1, COUNT), "count1 must be an instance of COUNT"
-        assert isinstance(count2, COUNT), "count2 must be an instance of COUNT"
+        assert isinstance(count1, COUNT), "first count must be an instance of COUNT"
+        assert isinstance(count2, COUNT), "second count must be an instance of COUNT"
         super().__init__(name)
         self.count1 = count1
         self.count2 = count2
@@ -186,8 +204,8 @@ class MAX(COUNT):
     # Takes in two COUNT operations
 
     def __init__(self, count1, count2, name):
-        assert isinstance(count1, COUNT), "count1 must be an instance of COUNT"
-        assert isinstance(count2, COUNT), "count2 must be an instance of COUNT"
+        assert isinstance(count1, COUNT), "first count must be an instance of COUNT"
+        assert isinstance(count2, COUNT), "second count must be an instance of COUNT"
         super().__init__(name)
         self.count1 = count1
         self.count2 = count2
@@ -226,6 +244,10 @@ class CRASP():
         for symbol in alphabet:
             self.operations.append(INIT(symbol, f"Q_{symbol}"))
 
+        # add <|BOS|> if not in alphabet
+        if "<|BOS|>" not in alphabet:
+            self.operations.append(INIT("<|BOS|>", "Q_<|BOS|>"))
+
     def add_NOT(self, operation_name, name):
         # Add a NOT operation
 
@@ -249,8 +271,8 @@ class CRASP():
 
         print(bool1_name, bool2_name)
         # Next check if the bool1_name and bool2_name are valid operations
-        assert bool1_name in [operation.name for operation in self.operations], "bool1_name must be a valid operation name"
-        assert bool2_name in [operation.name for operation in self.operations], "bool2_name must be a valid operation name"
+        assert bool1_name in [operation.name for operation in self.operations], "first bool name must be a valid operation name"
+        assert bool2_name in [operation.name for operation in self.operations], "second bool name must be a valid operation name"
 
         # select the last operation with the given names
         bool1 = [operation for operation in self.operations if operation.name == bool1_name][-1]
@@ -259,10 +281,27 @@ class CRASP():
         # Add the AND operation
         self.operations.append(AND(bool1, bool2, name))
 
+    def add_OR(self, bool1_name, bool2_name, name):
+        # Add an OR operation
+
+        # First check that the name is not already in use
+        assert name not in [operation.name for operation in self.operations], "name must be unique"
+
+        # Next check if the bool1_name and bool2_name are valid operations
+        assert bool1_name in [operation.name for operation in self.operations], "first bool name must be a valid operation name"
+        assert bool2_name in [operation.name for operation in self.operations], "second bool name must be a valid operation name"
+
+        # select the last operation with the given names
+        bool1 = [operation for operation in self.operations if operation.name == bool1_name][-1]
+        bool2 = [operation for operation in self.operations if operation.name == bool2_name][-1]
+
+        # Add the OR operation
+        self.operations.append(OR(bool1, bool2, name))
+
     def add_COMPARE(self, count1_name, count2_name, name):
         assert name not in [operation.name for operation in self.operations], "name must be unique"
-        assert count1_name in [operation.name for operation in self.operations], "count1_name must be a valid operation name"
-        assert count2_name in [operation.name for operation in self.operations], "count2_name must be a valid operation name"
+        assert count1_name in [operation.name for operation in self.operations], "first count name must be a valid operation name"
+        assert count2_name in [operation.name for operation in self.operations], "second count name must be a valid operation name"
 
         count1 = [operation for operation in self.operations if operation.name == count1_name][-1]
         count2 = [operation for operation in self.operations if operation.name == count2_name][-1]
@@ -280,8 +319,8 @@ class CRASP():
     def add_CONDITIONAL(self, operation_name, count1_name, count2_name, name):
         assert name not in [operation.name for operation in self.operations], "name must be unique"
         assert operation_name in [operation.name for operation in self.operations], "operation_name must be a valid operation name"
-        assert count1_name in [operation.name for operation in self.operations], "count1_name must be a valid operation name"
-        assert count2_name in [operation.name for operation in self.operations], "count2_name must be a valid operation name"
+        assert count1_name in [operation.name for operation in self.operations], "first count name must be a valid operation name"
+        assert count2_name in [operation.name for operation in self.operations], "second count name must be a valid operation name"
 
         operation = [operation for operation in self.operations if operation.name == operation_name][-1]
         count1 = [operation for operation in self.operations if operation.name == count1_name][-1]
@@ -291,8 +330,8 @@ class CRASP():
 
     def add_ADDITION(self, count1_name, count2_name, name):
         assert name not in [operation.name for operation in self.operations], "name must be unique"
-        assert count1_name in [operation.name for operation in self.operations], "count1_name must be a valid operation name"
-        assert count2_name in [operation.name for operation in self.operations], "count2_name must be a valid operation name"
+        assert count1_name in [operation.name for operation in self.operations], "first count name must be a valid operation name"
+        assert count2_name in [operation.name for operation in self.operations], "second count name must be a valid operation name"
 
         count1 = [operation for operation in self.operations if operation.name == count1_name][-1]
         count2 = [operation for operation in self.operations if operation.name == count2_name][-1]
@@ -301,8 +340,8 @@ class CRASP():
 
     def add_SUBTRACTION(self, count1_name, count2_name, name):
         assert name not in [operation.name for operation in self.operations], "name must be unique"
-        assert count1_name in [operation.name for operation in self.operations], "count1_name must be a valid operation name"
-        assert count2_name in [operation.name for operation in self.operations], "count2_name must be a valid operation name"
+        assert count1_name in [operation.name for operation in self.operations], "first count name must be a valid operation name"
+        assert count2_name in [operation.name for operation in self.operations], "second count name must be a valid operation name"
 
         count1 = [operation for operation in self.operations if operation.name == count1_name][-1]
         count2 = [operation for operation in self.operations if operation.name == count2_name][-1]
@@ -311,8 +350,8 @@ class CRASP():
 
     def add_MIN(self, count1_name, count2_name, name):
         assert name not in [operation.name for operation in self.operations], "name must be unique"
-        assert count1_name in [operation.name for operation in self.operations], "count1_name must be a valid operation name"
-        assert count2_name in [operation.name for operation in self.operations], "count2_name must be a valid operation name"
+        assert count1_name in [operation.name for operation in self.operations], "first count name must be a valid operation name"
+        assert count2_name in [operation.name for operation in self.operations], "second count name must be a valid operation name"
 
         count1 = [operation for operation in self.operations if operation.name == count1_name][-1]
         count2 = [operation for operation in self.operations if operation.name == count2_name][-1]
@@ -321,17 +360,18 @@ class CRASP():
 
     def add_MAX(self, count1_name, count2_name, name):
         assert name not in [operation.name for operation in self.operations], "name must be unique"
-        assert count1_name in [operation.name for operation in self.operations], "count1_name must be a valid operation name"
-        assert count2_name in [operation.name for operation in self.operations], "count2_name must be a valid operation name"
+        assert count1_name in [operation.name for operation in self.operations], "first count name must be a valid operation name"
+        assert count2_name in [operation.name for operation in self.operations], "second count name must be a valid operation name"
 
         count1 = [operation for operation in self.operations if operation.name == count1_name][-1]
         count2 = [operation for operation in self.operations if operation.name == count2_name][-1]
 
         self.operations.append(MAX(count1, count2, name))
 
-    def add_CONST(self, value, name):
-        assert name not in [operation.name for operation in self.operations], "name must be unique"
-        self.operations.append(CONST(value, name))
+    # # Removing CONST for now, layernorm might screw it up
+    # def add_CONST(self, value, name):
+    #     assert name not in [operation.name for operation in self.operations], "name must be unique"
+    #     self.operations.append(CONST(value, name))
 
     def __str__(self):
         return "\n".join([operation.name + " := " + str(operation) for operation in self.operations])

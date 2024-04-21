@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import CRASP
 
 class Transformer(nn.Module):
     def __init__(self, dims):
@@ -12,6 +11,7 @@ class Transformer(nn.Module):
         # Initialize lists to store self-attention and feed-forward layers
         self.self_attentions = nn.ModuleList([])
         self.feed_forwards = nn.ModuleList([])
+        self.layers = nn.ModuleList([])
 
         # Store layer normalization layers
         self.layer_norm = nn.LayerNorm(normalized_shape=dims, elementwise_affine=False)
@@ -28,6 +28,7 @@ class Transformer(nn.Module):
         self_attention.out_proj.weight = nn.Parameter(custom_value_weight)  # Since value and output projections are the same
 
         self.self_attentions.append(self_attention)
+        self.layers.append(self_attention)
         self.num_layers += 1
 
     def add_self_attention_layer_custom(self, custom_query_weight, custom_key_weight, custom_value_weight):
@@ -44,6 +45,7 @@ class Transformer(nn.Module):
         self_attention.out_proj.weight = nn.Parameter(custom_value_weight)  # Since value and output projections are the same
 
         self.self_attentions.append(self_attention)
+        self.layers.append(self_attention)
         self.num_layers += 1
 
     def add_feed_forward_layer(self):
@@ -54,6 +56,7 @@ class Transformer(nn.Module):
             nn.Linear(self.dims, self.dims)
         )
         self.feed_forwards.append(feed_forward)
+        self.layers.append(feed_forward)
         self.num_layers += 1
 
     def add_feed_forward_layer_custom(self, custom_feed_forward_1, custom_feed_forward_2):
@@ -79,45 +82,47 @@ class Transformer(nn.Module):
             linear_2
         )
         self.feed_forwards.append(feed_forward)
+        self.layers.append(feed_forward)
         self.num_layers += 1
 
     def forward(self, x):
-        num_layers = len(self.self_attentions)
-        for i in range(num_layers):
-            # Self-Attention Layer
-            self_attention_output, _ = self.self_attentions[i](x, x, x)
-            x = self.layer_norm(x + self_attention_output)
+        layer_output = x
+        for i in range(self.num_layers):
+            if self.layers[i].__class__.__name__ == "MultiheadAttention":
+                # Self-Attention Layer
+                mask = torch.triu(torch.ones((1, x.size(0), x.size(0))), diagonal=1).bool()
+                layer_output, _ = self.layers[i](x, x, x, attn_mask=mask)
+                # x = self.layer_norm(x + layer_output)
+            else:
+                # Feed-Forward Layer
+                layer_output = self.layers[i](x)
+                # x = self.layer_norm(x + layer_output)
+        return layer_output
 
-            # Feed-Forward Layer
-            feed_forward_output = self.feed_forwards[i](x)
-            x = self.layer_norm(x + feed_forward_output)
-        return x
+# Verified computation by hand on a simple uniform attention computation
 
-# Create a Transformer object with dims=512 and num_heads=8
-mydim = 10
-transformer = Transformer(dims=mydim)
+# mydim = 2
+# transformer = Transformer(dims=mydim)
 
-
-# Add layers manually
-transformer.add_self_attention_layer()
-transformer.add_feed_forward_layer()
-
-# Add a self-attention layer with custom weights
-custom_query_weight = torch.randn((mydim, mydim))
-custom_key_weight = torch.randn((mydim, mydim))
-custom_value_weight = torch.randn((mydim, mydim))
-transformer.add_self_attention_layer_custom(custom_query_weight, custom_key_weight, custom_value_weight)
-
-# Add a feed-forward layer with custom weights
-custom_feed_forward_1 = torch.randn((20, mydim))
-custom_feed_forward_2 = torch.randn((mydim, 20))
-transformer.add_feed_forward_layer_custom(custom_feed_forward_1, custom_feed_forward_2)
+# custom_query_weight = torch.zeros((mydim, mydim))
+# custom_key_weight = torch.zeros((mydim, mydim))
+# custom_value_weight = torch.eye(mydim)
+# transformer.add_self_attention_layer_custom(custom_query_weight, custom_key_weight, custom_value_weight)
 
 # for name, param in transformer.named_parameters():
-#     print(f"Layer: {name}")
-#     print(f"Weights: {param.data}")
+#     # Check if is in_proj_weight, and if so print the 3 separate weight matrices
+#     if "in_proj_weight" in name:
+#         w_q, w_k, w_v = param.chunk(3)
+#         print(f"Layer: {name}")
+#         print(f"Query weights: {w_q}")
+#         print(f"Key weights: {w_k}")
+#         print(f"Value weights: {w_v}")
+#     else:
+#         print(f"Layer: {name}")
+#         print(f"Weights: {param.data}")
 
-# Example usage
-input_data = torch.randn((10, 20, mydim))  # Example input data
-output = transformer(input_data)
-print(output.shape)
+# # Example usage
+# input_data = torch.randint(0, 2, (4, mydim)).float()
+# print(input_data)
+# output = transformer(input_data)
+# print(output)
