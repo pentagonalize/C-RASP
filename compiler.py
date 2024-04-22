@@ -135,7 +135,7 @@ class CRASP_to_Transformer(nn.Module):
         self.Transformer.add_feed_forward_layer_custom(custom_feed_forward_1.float(), custom_feed_forward_2.float())
 
     def add_COUNTING(self, operation_name, name):
-        # Add a Counting operation to the CRASP program that counts the number of True values in the output of the operation with the given name
+        # Add a Counting operation to the CRASP program
         self.Program.add_COUNTING(operation_name, name)
 
         # Make room in the Transformer for the new operation
@@ -202,10 +202,6 @@ class CRASP_to_Transformer(nn.Module):
         # Pass the input tensor through the Transformer
         output_tensor = self.Transformer(input_tensor)
 
-        # Get the value in the last two dimensions of the last position and convert to a Boolean value [-1,1] -> True, [1,-1] -> False
-        result = output_tensor[-1, -2:].flatten()
-        result = bool(result[0] == -1)
-
         if pretty_print:
             result = output_tensor
             # Delete every odd column
@@ -213,10 +209,14 @@ class CRASP_to_Transformer(nn.Module):
             # Make tensor a list of lists
             result = result.tolist()
 
-            # First, note that LayerNorm applied a scaling factor to every column. We need to undo this scaling factor
-            # The magnitude of any boolean value is the scaling factor
-            scale = result[0][0]
+            # First, note that LayerNorm applied a scaling factor to every column.
+            # We need to undo this scaling factor
+            # The magnitude of the TRUE column is the scaling factor
+            # Some jank choices made here with negatives
+            # Since the TRUE value is -1, we invert in various places to make it work out
+            TRUE_index = self.Program.get_index("TRUE")
             for i in range(len(result)):
+                scale = -result[i][TRUE_index]
                 for j in range(len(result[i])):
                     result[i][j] = result[i][j]/scale
 
@@ -224,7 +224,7 @@ class CRASP_to_Transformer(nn.Module):
                 # check if the ith operation is a BOOL operation
                 if self.Program.operations[i].__class__.__bases__[0].__name__ == "BOOL":
                     for col in result:
-                        if bool(math.isclose(col[i], -1, rel_tol=1e-5)):
+                        if bool(math.isclose(col[i], 1, rel_tol=1e-5)):
                             col[i] = "T"
                         else:
                             col[i] = "F"
@@ -251,10 +251,13 @@ class CRASP_to_Transformer(nn.Module):
                 for j, (col, width) in enumerate(zip(row, column_widths)):
                     aligned_result += f"{col:>{width}}"
                     if j < len(row) - 1:
-                        aligned_result += ' | ' if j == 0 else '  '  # Add a vertical line after the first column
-                aligned_result += '\n'  # Newline after each row
+                        # Add a vertical line after the first column
+                        aligned_result += ' | ' if j == 0 else '  '
+                # Newline after each row
+                aligned_result += '\n'
                 if i == 0:
-                    aligned_result += '-' * (sum(column_widths) + 3 * len(column_widths) - 1) + '\n'  # Horizontal line after the first row
+                    # Horizontal line after the first row
+                    aligned_result += '-' * (sum(column_widths) + 3 * len(column_widths) - 1) + '\n'
 
             return aligned_result
         else:
