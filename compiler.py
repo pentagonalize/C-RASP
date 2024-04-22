@@ -32,7 +32,7 @@ def word_embedding(alphabet):
 # Define a CRASP to Transformer class
 
 class CRASP_to_Transformer(nn.Module):
-    def __init__(self, alphabet):
+    def __init__(self, alphabet, use_layer_norm=False):
         super().__init__()
         self.alphabet = alphabet
 
@@ -48,8 +48,11 @@ class CRASP_to_Transformer(nn.Module):
         # Initialize an empty Transformer with dimensions double the alphabet size +1 for <|BOS|>
         # This is because the word embeddings are doubled up
         # Plus 2 more for the constant
-        self.Transformer = transformer.Transformer(2*len(alphabet)+2)
+        self.Transformer = transformer.Transformer(2*len(alphabet)+2, use_layer_norm)
         self.dims = 2*len(alphabet)+2
+
+        # Add a const 1 operation to the CRASP program
+        self.add_CONST(1, "ONE")
 
     def make_room(self):
         # We need to update the Transformer to reflect the new operation
@@ -188,6 +191,196 @@ class CRASP_to_Transformer(nn.Module):
         # Add the Feed-Forward Layer to the Transformer
         self.Transformer.add_feed_forward_layer_custom(custom_feed_forward_1.float(), custom_feed_forward_2.float())
 
+    def add_CONST(self, c, name):
+        # Add a Counting operation to the CRASP program
+        self.Program.add_CONST(c, name)
+
+        # Make room in the Transformer for the new operation
+        self.make_room()
+
+        # Now get the index of the operation in the CRASP program
+        # This corresponds to the dimension in which the operation is stored in the Transformer
+        # That is, 2*operation_index and 2*operation_index+1 store the Boolean values of the operation
+        operation_index = self.Program.get_index("Q_<|BOS|>")
+
+        # now define the query, key, and value matrices
+        # the query and key will be all zeros
+        custom_query_weight = torch.zeros((self.dims, self.dims))
+        custom_key_weight = torch.zeros((self.dims, self.dims))
+
+        # initialize the value matrix as all zeros
+        custom_value_weight = torch.zeros((self.dims, self.dims))
+
+        # set the correct routing values
+        custom_value_weight[self.dims-2, self.dims-2] = 1
+        custom_value_weight[self.dims-2, 2*operation_index] = 1
+
+        custom_value_weight[self.dims-1, self.dims-1] = 1
+        custom_value_weight[self.dims-1, 2*operation_index+1] = 1
+
+        # Add the Counting operation to the Transformer
+        self.Transformer.add_self_attention_layer_custom(custom_query_weight.float(), custom_key_weight.float(), custom_value_weight.float())
+
+        # Construct the Feed-Forward Layer that fixes the count values
+        # Locate the TRUE dimension
+        true_index = self.Program.get_index("TRUE")
+
+        # the first linear layer will be from self.dims to 2
+        # basically the count is stored as -2X+1 in the negative dim
+        # We retrieve X by multiplying by -1/2 and adding 1/2 (must be nonnegative so preserved by ReLU)
+        custom_feed_forward_1 = torch.zeros((2, self.dims))
+        custom_feed_forward_1[0, self.dims-2] = -0.5
+        custom_feed_forward_1[0, 2*true_index] = -0.5
+        custom_feed_forward_1[1, 2*true_index] = -1
+
+        # The second linear layer will be from 2 to self.dims
+        # Basically we add X and subtract 1 to -2x+1 to get -X as desired
+        # Symmetric for the other dimension
+        custom_feed_forward_2 = torch.zeros((self.dims, 2))
+        custom_feed_forward_2[self.dims-2, 0] = (2-c)
+        custom_feed_forward_2[self.dims-2, 1] = -1
+        custom_feed_forward_2[self.dims-1, 0] = -(2-c)
+        custom_feed_forward_2[self.dims-1, 1] = 1
+
+        # Add the Feed-Forward Layer to the Transformer
+        self.Transformer.add_feed_forward_layer_custom(custom_feed_forward_1.float(), custom_feed_forward_2.float())
+
+    def add_COMPARE(self, operation_name_1, operation_name_2, name):
+        # Add a Comparison operation to the CRASP program
+        self.Program.add_COMPARE(operation_name_1, operation_name_2, name)
+
+        # Make room in the Transformer for the new operation
+        self.make_room()
+
+        # Get the index of the "1" operation
+        one_index = self.Program.get_index("ONE")
+
+        # Get the index of the two operations
+        operation_index_1 = self.Program.get_index(operation_name_1)
+        operation_index_2 = self.Program.get_index(operation_name_2)
+
+        # initialize the first linear layer
+        custom_feed_forward_1 = torch.zeros((self.dims+self.dims, self.dims))
+        # The first part will be the identity
+        custom_feed_forward_1[:self.dims, :self.dims] = torch.eye(self.dims)
+        # The second part will compute gtz
+        # We iterate for every operation
+
+        for i in range(int(self.dims/2)-1):
+            # route -X to the first dimension
+            custom_feed_forward_1[self.dims+2*i, 2*i] = 1
+
+            # route 1-X to the second dimension by routing -X and adding 1
+            custom_feed_forward_1[self.dims+2*i+1, 2*i] = 1
+            custom_feed_forward_1[self.dims+2*i+1, 2*one_index] = -1
+
+        # The last dimension is special
+        # Subtract the second operation
+        custom_feed_forward_1[2*self.dims-2, 2*operation_index_2] = 1
+        # Add the first operation
+        custom_feed_forward_1[2*self.dims-2, 2*operation_index_1] = -1
+
+        # Subtract the second operation
+        custom_feed_forward_1[2*self.dims-1, 2*operation_index_2] = 1
+        # Add the first operation
+        if operation_name_1 == "ONE":
+            # If the first operation is the constant 1, then we need to add the one operation too
+            custom_feed_forward_1[2*self.dims-1, 2*operation_index_1] = -2
+        else:
+            # otherwise proceed as normal
+            custom_feed_forward_1[2*self.dims-1, 2*operation_index_1] = -1
+            # Here also add the one operation (note the first is -1 and the second is 1)
+            custom_feed_forward_1[2*self.dims-1, 2*one_index] = -1
+
+        # initialize the second linear layer
+        custom_feed_forward_2 = torch.zeros((self.dims, self.dims+self.dims))
+
+        # set the correct routing values
+        for i in range(int(self.dims/2)):
+            # Subtract to cancel out residual connection
+            # One of them will be 0 due to the ReLU
+            custom_feed_forward_2[2*i, 2*i] = -1
+            custom_feed_forward_2[2*i, 2*i+1] = 1
+
+            # # Add 0.5 using the one operation (it also has to be doubled up due to ReLU)
+            custom_feed_forward_2[2*i, 2*one_index] = -0.5
+            custom_feed_forward_2[2*i, 2*one_index+1] = -0.5
+
+            # # Add the first computed value from custom_feed_forward_1. This should be ReLU(-X)
+            custom_feed_forward_2[2*i, self.dims+2*i] = -1
+            # Subtract the second computed value from custom_feed_forward_1. This should be ReLU(1-X)
+            custom_feed_forward_2[2*i, self.dims+2*i+1] = 1
+
+            # # Symmetrically assign the values for the second dimension, but negated
+            custom_feed_forward_2[2*i+1, 2*i] = 1
+            custom_feed_forward_2[2*i+1, 2*i+1] = -1
+            custom_feed_forward_2[2*i+1, 2*one_index] = 0.5
+            custom_feed_forward_2[2*i+1, 2*one_index+1] = 0.5
+            custom_feed_forward_2[2*i+1, self.dims+2*i] = 1
+            custom_feed_forward_2[2*i+1, self.dims+2*i+1] = -1
+
+        # Every value should become +-0.5, and then LayerNorm will scale it to +-1...
+
+        # Add the Comparison operation to the Transformer
+        self.Transformer.add_feed_forward_layer_custom(custom_feed_forward_1.float(), custom_feed_forward_2.float())
+
+        # We've destroyed the ONE, but we can fix it.
+        # First add a FFN that zeros out the ONE operation
+        custom_feed_forward_1 = torch.zeros((1, self.dims))
+        custom_feed_forward_1[0, 2*one_index] = -1
+
+        custom_feed_forward_2 = torch.zeros((self.dims, 1))
+        custom_feed_forward_2[2*one_index, 0] = 1
+        custom_feed_forward_2[2*one_index+1, 0] = -1
+
+        self.Transformer.add_feed_forward_layer_custom(custom_feed_forward_1.float(), custom_feed_forward_2.float())
+
+        # Add another SA to fix the ONE....
+
+        operation_index = self.Program.get_index("Q_<|BOS|>")
+
+        # now define the query, key, and value matrices
+        # the query and key will be all zeros
+        custom_query_weight = torch.zeros((self.dims, self.dims))
+        custom_key_weight = torch.zeros((self.dims, self.dims))
+
+        # initialize the value matrix as all zeros
+        custom_value_weight = torch.zeros((self.dims, self.dims))
+
+        # set the correct routing values
+        custom_value_weight[2*one_index, 2*one_index] = 1
+        custom_value_weight[2*one_index, 2*operation_index] = 1
+
+        custom_value_weight[2*one_index+1, 2*one_index+1] = 1
+        custom_value_weight[2*one_index+1, 2*operation_index+1] = 1
+
+        # Add the Counting operation to the Transformer
+        self.Transformer.add_self_attention_layer_custom(custom_query_weight.float(), custom_key_weight.float(), custom_value_weight.float())
+
+        # Construct the Feed-Forward Layer that fixes the count values
+        # Locate the TRUE dimension
+        true_index = self.Program.get_index("TRUE")
+
+        # the first linear layer will be from self.dims to 2
+        # basically the count is stored as -2X+1 in the negative dim
+        # We retrieve X by multiplying by -1/2 and adding 1/2 (must be nonnegative so preserved by ReLU)
+        custom_feed_forward_1 = torch.zeros((2, self.dims))
+        custom_feed_forward_1[0, 2*one_index] = -0.5
+        custom_feed_forward_1[0, 2*true_index] = -0.5
+        custom_feed_forward_1[1, 2*true_index] = -1
+
+        # The second linear layer will be from 2 to self.dims
+        # Basically we add X and subtract 1 to -2x+1 to get -X as desired
+        # Symmetric for the other dimension
+        custom_feed_forward_2 = torch.zeros((self.dims, 2))
+        custom_feed_forward_2[2*one_index, 0] = 1
+        custom_feed_forward_2[2*one_index, 1] = -1
+        custom_feed_forward_2[2*one_index+1, 0] = -1
+        custom_feed_forward_2[2*one_index+1, 1] = 1
+
+        # Add the Feed-Forward Layer to the Transformer
+        self.Transformer.add_feed_forward_layer_custom(custom_feed_forward_1.float(), custom_feed_forward_2.float())
+
     def forward(self, input, pretty_print=False):
         # The input is a list of words
         # First convert the words to their one-hot encodings, to get a tensor of shape (len(input), 2*len(alphabet))
@@ -236,6 +429,23 @@ class CRASP_to_Transformer(nn.Module):
 
             # reformat so the program trace is comprehensible
             result = [[result[j][i] for j in range(len(result))] for i in range(len(result[0]))]
+
+            # Get the index of the last COMPARE operation
+            last_COMPARE_index = -1
+            for i in range(len(self.Program.operations)):
+                if self.Program.operations[i].__class__.__name__ == "COMPARE":
+                    last_COMPARE_index = i
+
+            # for every COUNT operation before the last_COMPARE_index, we set all counts to 0
+            for i in range(last_COMPARE_index):
+                if self.Program.operations[i].__class__.__bases__[0].__name__ == "COUNT":
+                    # If it's ONE Then it's fine
+                    if self.Program.operations[i].name == "ONE":
+                        continue
+                    else:
+                        for j in range(len(input)):
+                            result[i][j] = '-'
+
             # append the operation name to the beginning of each row
             for i in range(len(result)):
                 result[i] = [self.Program.operations[i].verbose_str()] + result[i]
@@ -265,17 +475,16 @@ class CRASP_to_Transformer(nn.Module):
 
 # Test the CRASP_to_Transformer class
 
-alphabet = ['a', 'b', 'c']
-model = CRASP_to_Transformer(alphabet)
-model.add_NOT('Q_a', "P1")
-model.add_COUNTING('Q_a', "P2")
-model.add_COUNTING('P1', "P3")
-
+alphabet = ['(', ')']
+model = CRASP_to_Transformer(alphabet, use_layer_norm=True)
+model.add_COUNTING('Q_(', "C1")
+model.add_COUNTING('Q_)', "C2")
+model.add_COMPARE('C2', 'C1', "P4")
 print(model.word_embedding)
 print(model.Program)
 print(model.Transformer)
 
 # Test the forward method
-output = model(['a', 'c', 'b', 'a', 'a', 'b', 'a', 'b', 'c'], pretty_print=True)
+output = model(['(', '(', ')', ')'], pretty_print=True)
 print(output)
 

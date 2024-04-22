@@ -3,9 +3,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class Transformer(nn.Module):
-    def __init__(self, dims):
+    def __init__(self, dims, use_layer_norm=True):
         super(Transformer, self).__init__()
         self.dims = dims
+        self.use_layer_norm = use_layer_norm
         self.num_layers = 0  # Initially, there are no layers
 
         # Initialize lists to store self-attention and feed-forward layers
@@ -95,14 +96,16 @@ class Transformer(nn.Module):
                 # Residual connection
                 layer_output = layer_output + prev_output
                 # Layer normalization
-                layer_output = self.layer_norm(layer_output)
+                if self.use_layer_norm:
+                    layer_output = self.layer_norm(layer_output)
             else:
                 # Feed-Forward Layer
                 layer_output = self.layers[i](layer_output)
                 # Residual connection
                 layer_output = layer_output + prev_output
                 # Layer normalization
-                layer_output = self.layer_norm(layer_output)
+                if self.use_layer_norm:
+                    layer_output = self.layer_norm(layer_output)
         return layer_output
 
 # Verified attention by hand on a simple uniform attention computation

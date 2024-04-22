@@ -92,10 +92,10 @@ class COMPARE(BOOL):
         self.count2 = count2
 
     def __str__(self):
-        return f"{self.count1.name} <= {self.count2.name}"
+        return f"{self.count1.name} < {self.count2.name}"
 
     def verbose_str(self):
-        return f"({self.count1.verbose_str()} <= {self.count2.verbose_str()})"
+        return f"({self.count1.verbose_str()} < {self.count2.verbose_str()})"
 
 class CONSTANT(BOOL):
     # Constant operation for CRASP
@@ -320,7 +320,7 @@ class CRASP():
         min_index = min(count1_index, count2_index)
 
         # Check if there is a comparison operation between min_index and the current index
-        if any([isinstance(operation, COMPARE) for operation in self.operations[min_index:self.get_index(name)]]):
+        if any([isinstance(operation, COMPARE) for operation in self.operations[min_index:len(self.operations)]]):
             raise Exception("cannot compare counts that have been overwritten, need to recompute them (pls blame Ashish Vaswani, not me...)")
 
         count1 = [operation for operation in self.operations if operation.name == count1_name][-1]
@@ -389,9 +389,9 @@ class CRASP():
         self.operations.append(MAX(count1, count2, name))
 
     # # Removing CONST for now, layernorm might screw it up
-    # def add_CONST(self, value, name):
-    #     assert name not in [operation.name for operation in self.operations], "name must be unique"
-    #     self.operations.append(CONST(value, name))
+    def add_CONST(self, value, name):
+        assert name not in [operation.name for operation in self.operations], "name must be unique"
+        self.operations.append(CONST(value, name))
 
     def __str__(self):
         return "\n".join([operation.name + " := " + str(operation) for operation in self.operations])
