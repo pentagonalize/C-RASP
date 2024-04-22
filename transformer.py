@@ -107,35 +107,35 @@ class Transformer(nn.Module):
 
 # Verified attention by hand on a simple uniform attention computation
 
-mydim = 4
-transformer = Transformer(dims=mydim)
+# mydim = 4
+# transformer = Transformer(dims=mydim)
 
-custom_query_weight = torch.zeros((mydim, mydim))
-custom_key_weight = torch.zeros((mydim, mydim))
-custom_value_weight = torch.zeros((mydim, mydim))
-custom_value_weight[3, 0] = 1
-custom_value_weight[3, 3] = 1
+# custom_query_weight = torch.zeros((mydim, mydim))
+# custom_key_weight = torch.zeros((mydim, mydim))
+# custom_value_weight = torch.zeros((mydim, mydim))
+# custom_value_weight[3, 0] = 1
+# custom_value_weight[3, 3] = 1
 
-transformer.add_self_attention_layer_custom(custom_query_weight, custom_key_weight, custom_value_weight)
+# transformer.add_self_attention_layer_custom(custom_query_weight, custom_key_weight, custom_value_weight)
 
-for name, param in transformer.named_parameters():
-    # Check if is in_proj_weight, and if so print the 3 separate weight matrices
-    if "in_proj_weight" in name:
-        w_q, w_k, w_v = param.chunk(3)
-        print(f"Layer: {name}")
-        print(f"Query weights: {w_q}")
-        print(f"Key weights: {w_k}")
-        print(f"Value weights: {w_v}")
-    else:
-        print(f"Layer: {name}")
-        print(f"Weights: {param.data}")
+# for name, param in transformer.named_parameters():
+#     # Check if is in_proj_weight, and if so print the 3 separate weight matrices
+#     if "in_proj_weight" in name:
+#         w_q, w_k, w_v = param.chunk(3)
+#         print(f"Layer: {name}")
+#         print(f"Query weights: {w_q}")
+#         print(f"Key weights: {w_k}")
+#         print(f"Value weights: {w_v}")
+#     else:
+#         print(f"Layer: {name}")
+#         print(f"Weights: {param.data}")
 
-# Example usage
-input_data = torch.randint(0, 2, (4, mydim)).float()
+# # Example usage
+# input_data = torch.randint(0, 2, (4, mydim)).float()
 
-# set the last column to all 0
-input_data[:, 3] = 0
+# # set the last column to all 0
+# input_data[:, 3] = 0
 
-print(input_data)
-output = transformer(input_data)
-print(output)
+# print(input_data)
+# output = transformer(input_data)
+# print(output)
