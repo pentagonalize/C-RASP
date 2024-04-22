@@ -253,6 +253,11 @@ class CRASP():
         # Get the index of the operation with the given name in the operations list
         return [operation.name for operation in self.operations].index(operation_name)
 
+    def add_CONSTANT(self, name):
+        # Add a CONSTANT operation
+        assert name not in [operation.name for operation in self.operations], "name must be unique"
+        self.operations.append(CONSTANT(name))
+
     def add_NOT(self, operation_name, name):
         # Add a NOT operation
 

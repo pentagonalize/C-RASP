@@ -9,8 +9,6 @@ class Transformer(nn.Module):
         self.num_layers = 0  # Initially, there are no layers
 
         # Initialize lists to store self-attention and feed-forward layers
-        self.self_attentions = nn.ModuleList([])
-        self.feed_forwards = nn.ModuleList([])
         self.layers = nn.ModuleList([])
 
         # Store layer normalization layers
@@ -27,7 +25,6 @@ class Transformer(nn.Module):
         self_attention.in_proj_weight = nn.Parameter(torch.cat([custom_query_weight, custom_key_weight, custom_value_weight], dim=0))
         self_attention.out_proj.weight = nn.Parameter(custom_value_weight)  # Since value and output projections are the same
 
-        self.self_attentions.append(self_attention)
         self.layers.append(self_attention)
         self.num_layers += 1
 
@@ -42,9 +39,13 @@ class Transformer(nn.Module):
 
         # Assign the custom weight matrices to the MultiheadAttention module
         self_attention.in_proj_weight = nn.Parameter(torch.cat([custom_query_weight, custom_key_weight, custom_value_weight], dim=0))
-        self_attention.out_proj.weight = nn.Parameter(custom_value_weight)  # Since value and output projections are the same
+        # transpose the value weight matrix to match the expected shape
+        self_attention.out_proj.weight = nn.Parameter(custom_value_weight)
+        # Set bias to zero for both in_proj and out_proj
+        self_attention.in_proj_bias = nn.Parameter(torch.zeros(3 * self.dims))
+        self_attention.out_proj.bias = nn.Parameter(torch.zeros(self.dims))
 
-        self.self_attentions.append(self_attention)
+        # Add to list
         self.layers.append(self_attention)
         self.num_layers += 1
 
@@ -55,7 +56,6 @@ class Transformer(nn.Module):
             nn.ReLU(),
             nn.Linear(self.dims, self.dims)
         )
-        self.feed_forwards.append(feed_forward)
         self.layers.append(feed_forward)
         self.num_layers += 1
 
@@ -81,7 +81,6 @@ class Transformer(nn.Module):
             nn.ReLU(),
             linear_2
         )
-        self.feed_forwards.append(feed_forward)
         self.layers.append(feed_forward)
         self.num_layers += 1
 
@@ -108,28 +107,35 @@ class Transformer(nn.Module):
 
 # Verified attention by hand on a simple uniform attention computation
 
-# mydim = 2
-# transformer = Transformer(dims=mydim)
+mydim = 4
+transformer = Transformer(dims=mydim)
 
-# custom_query_weight = torch.zeros((mydim, mydim))
-# custom_key_weight = torch.zeros((mydim, mydim))
-# custom_value_weight = torch.eye(mydim)
-# transformer.add_self_attention_layer_custom(custom_query_weight, custom_key_weight, custom_value_weight)
+custom_query_weight = torch.zeros((mydim, mydim))
+custom_key_weight = torch.zeros((mydim, mydim))
+custom_value_weight = torch.zeros((mydim, mydim))
+custom_value_weight[3, 0] = 1
+custom_value_weight[3, 3] = 1
 
-# for name, param in transformer.named_parameters():
-#     # Check if is in_proj_weight, and if so print the 3 separate weight matrices
-#     if "in_proj_weight" in name:
-#         w_q, w_k, w_v = param.chunk(3)
-#         print(f"Layer: {name}")
-#         print(f"Query weights: {w_q}")
-#         print(f"Key weights: {w_k}")
-#         print(f"Value weights: {w_v}")
-#     else:
-#         print(f"Layer: {name}")
-#         print(f"Weights: {param.data}")
+transformer.add_self_attention_layer_custom(custom_query_weight, custom_key_weight, custom_value_weight)
 
-# # Example usage
-# input_data = torch.randint(0, 2, (4, mydim)).float()
-# print(input_data)
-# output = transformer(input_data)
-# print(output)
+for name, param in transformer.named_parameters():
+    # Check if is in_proj_weight, and if so print the 3 separate weight matrices
+    if "in_proj_weight" in name:
+        w_q, w_k, w_v = param.chunk(3)
+        print(f"Layer: {name}")
+        print(f"Query weights: {w_q}")
+        print(f"Key weights: {w_k}")
+        print(f"Value weights: {w_v}")
+    else:
+        print(f"Layer: {name}")
+        print(f"Weights: {param.data}")
+
+# Example usage
+input_data = torch.randint(0, 2, (4, mydim)).float()
+
+# set the last column to all 0
+input_data[:, 3] = 0
+
+print(input_data)
+output = transformer(input_data)
+print(output)
