@@ -15,6 +15,7 @@ Implement Counts
 - Min
 - Max
 - Constants
+- Design choices: Hide BOS. Also need another FFN to ensure the BOS count is always 0, otherwise it screws with the rest
 
 Utilities
 - When pretty-printing, mask out the counts that have been overwritten by LayerNorm during Comparison

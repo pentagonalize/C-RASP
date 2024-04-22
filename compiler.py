@@ -224,7 +224,7 @@ class CRASP_to_Transformer(nn.Module):
                 # check if the ith operation is a BOOL operation
                 if self.Program.operations[i].__class__.__bases__[0].__name__ == "BOOL":
                     for col in result:
-                        if bool(math.isclose(col[i], 1, rel_tol=1e-5)):
+                        if bool(math.isclose(col[i], -1, rel_tol=1e-5)):
                             col[i] = "T"
                         else:
                             col[i] = "F"
@@ -265,7 +265,7 @@ class CRASP_to_Transformer(nn.Module):
 
 # Test the CRASP_to_Transformer class
 
-alphabet = ['a', 'b']
+alphabet = ['a', 'b', 'c']
 model = CRASP_to_Transformer(alphabet)
 model.add_NOT('Q_a', "P1")
 model.add_COUNTING('Q_a', "P2")
@@ -276,6 +276,6 @@ print(model.Program)
 print(model.Transformer)
 
 # Test the forward method
-output = model(['b', 'a', 'a', 'b', 'a', 'b'], pretty_print=True)
+output = model(['a', 'c', 'b', 'a', 'a', 'b', 'a', 'b', 'c'], pretty_print=True)
 print(output)
 
