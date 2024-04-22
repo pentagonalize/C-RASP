@@ -95,14 +95,14 @@ class Transformer(nn.Module):
                 # Residual connection
                 layer_output = layer_output + prev_output
                 # Layer normalization
-                # layer_output = self.layer_norm(layer_output)
+                layer_output = self.layer_norm(layer_output)
             else:
                 # Feed-Forward Layer
                 layer_output = self.layers[i](layer_output)
                 # Residual connection
                 layer_output = layer_output + prev_output
                 # Layer normalization
-                # layer_output = self.layer_norm(layer_output)
+                layer_output = self.layer_norm(layer_output)
         return layer_output
 
 # Verified attention by hand on a simple uniform attention computation

@@ -215,10 +215,10 @@ class CRASP_to_Transformer(nn.Module):
 
             # First, note that LayerNorm applied a scaling factor to every column. We need to undo this scaling factor
             # The magnitude of any boolean value is the scaling factor
-            # scale = result[0][0]
-            # for i in range(len(result)):
-            #     for j in range(len(result[i])):
-            #         result[i][j] = result[i][j]/scale
+            scale = result[0][0]
+            for i in range(len(result)):
+                for j in range(len(result[i])):
+                    result[i][j] = result[i][j]/scale
 
             for i in range(len(self.Program.operations)):
                 # check if the ith operation is a BOOL operation
